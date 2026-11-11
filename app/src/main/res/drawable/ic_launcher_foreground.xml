@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The wordmark's "O" on the app's terracotta: the iOS project ships no icon art yet. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#F2E8D6"
+        android:fillType="evenOdd"
+        android:pathData="M54,32a22,22 0,1 0,0 44a22,22 0,1 0,0 -44zM54,40.5a13.5,13.5 0,1 1,0 27a13.5,13.5 0,1 1,0 -27z" />
+</vector>

@@ -1,0 +1,21 @@
+# Gradle and build output
+.gradle/
+build/
+.kotlin/
+
+# Android Studio / IntelliJ per-user state
+.idea/
+*.iml
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# macOS
+.DS_Store
+
+# Local secrets (API keys etc.), bundled at build time, never committed.
+# Copy Secrets.example.json to app/src/main/assets/Secrets.json and fill in real values.
+app/src/main/assets/Secrets.json
+# The Firebase project config that turns push on.
+app/google-services.json

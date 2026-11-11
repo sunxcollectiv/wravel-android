@@ -1,0 +1,9 @@
+<resources>
+    <!-- The window behind Compose: the app's terracotta, with edge-to-edge bars. -->
+    <style name="Theme.Outbound" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/app_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
