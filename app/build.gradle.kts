@@ -36,16 +36,19 @@ android {
     }
 
     buildTypes {
-        // Debug builds talk to the local dev server; release builds use production.
-        // The emulator reaches a server running on this machine at 10.0.2.2. To point a
-        // debug build elsewhere (another port, or this machine's address for a phone),
-        // pass -Poutbound.apiBaseUrl=http://… or set it in ~/.gradle/gradle.properties.
+        // Debug builds talk to the local dev server when running on the emulator (which
+        // reaches this machine at 10.0.2.2) and to production on a physical device;
+        // release builds always use production. To point a debug build somewhere else on
+        // both (another port, or this machine's LAN address for a phone), pass
+        // -Poutbound.apiBaseUrl=http://… or set it in ~/.gradle/gradle.properties.
         debug {
-            val apiBaseUrl = providers.gradleProperty("outbound.apiBaseUrl").orNull ?: "http://10.0.2.2:4830"
-            buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+            val override = providers.gradleProperty("outbound.apiBaseUrl").orNull
+            buildConfigField("String", "API_BASE_URL", "\"${override ?: "https://api.wravel.app"}\"")
+            buildConfigField("String", "EMULATOR_API_BASE_URL", "\"${override ?: "http://10.0.2.2:4830"}\"")
         }
         release {
-            buildConfigField("String", "API_BASE_URL", "\"https://api.outbound.earth\"")
+            buildConfigField("String", "API_BASE_URL", "\"https://api.wravel.app\"")
+            buildConfigField("String", "EMULATOR_API_BASE_URL", "\"https://api.wravel.app\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
