@@ -43,12 +43,12 @@ android {
         // -Poutbound.apiBaseUrl=http://… or set it in ~/.gradle/gradle.properties.
         debug {
             val override = providers.gradleProperty("outbound.apiBaseUrl").orNull
-            buildConfigField("String", "API_BASE_URL", "\"${override ?: "https://api.outbound.earth"}\"")
+            buildConfigField("String", "API_BASE_URL", "\"${override ?: "https://api.wravel.app"}\"")
             buildConfigField("String", "EMULATOR_API_BASE_URL", "\"${override ?: "http://10.0.2.2:4830"}\"")
         }
         release {
-            buildConfigField("String", "API_BASE_URL", "\"https://api.outbound.earth\"")
-            buildConfigField("String", "EMULATOR_API_BASE_URL", "\"https://api.outbound.earth\"")
+            buildConfigField("String", "API_BASE_URL", "\"https://api.wravel.app\"")
+            buildConfigField("String", "EMULATOR_API_BASE_URL", "\"https://api.wravel.app\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
