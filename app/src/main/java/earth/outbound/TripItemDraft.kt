@@ -611,10 +611,14 @@ data class TripItemDraft(
                 itemKind != TripItemKind.Transit -> emptyList()
                 segments.isNotEmpty() -> segments.map(::TransitLeg)
                 // A new transit (or one saved without legs) starts as one leg from the
-                // item's own ends.
+                // item's own ends. A new one starts as a flight, the most common case.
                 else -> listOf(
                     TransitLeg(
-                        transitMode = item?.transitMode.takeUnless { it == TransitMode.Mixed },
+                        transitMode = if (item == null) {
+                            TransitMode.Flight
+                        } else {
+                            item.transitMode.takeUnless { it == TransitMode.Mixed }
+                        },
                         startPlace = item?.place,
                         startPlaceText = item?.place?.name ?: "",
                         endPlace = item?.endPlace,

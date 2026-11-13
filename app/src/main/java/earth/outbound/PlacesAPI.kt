@@ -26,6 +26,8 @@ data class Place(
     /** Null right after creation: the backend enriches name/address/coords later. */
     val name: String? = null,
     val category: String? = null,
+    /** A short code for the place, e.g. an airport's IATA code ("LAX"). */
+    val code: String? = null,
     val address: String? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
@@ -75,6 +77,7 @@ data class CoverPhoto(
  *
  *     POST /places          PlaceFromGoogle       -> PlaceRead (201)
  *     POST /places/refresh  PlacesRefreshRequest  -> PlacesRefreshResponse
+ *     GET  /places/airports ?q=&limit=            -> [PlaceRead]
  */
 object PlacesAPI {
     /**
@@ -112,5 +115,15 @@ object PlacesAPI {
         path = "/places/refresh",
         method = HTTPMethod.POST,
         body = jsonBody(RefreshRequest(placeIds = placeIds)),
+    )
+
+    /**
+     * Airports in our own database whose IATA code or name matches `query`, best
+     * matches first (exact code, then code prefix, then name). For the ends of a
+     * flight, so they come from our curated list rather than a broad Google search.
+     */
+    fun searchAirports(query: String, limit: Int = 10) = Endpoint(
+        path = "/places/airports",
+        query = listOf("q" to query, "limit" to limit.toString()),
     )
 }

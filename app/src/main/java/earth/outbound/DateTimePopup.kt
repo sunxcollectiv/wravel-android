@@ -103,6 +103,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
@@ -792,8 +793,13 @@ private fun Pane(
             )
         }
 
-        // Sets the date section apart from the time below it.
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Color.appForeground.copy(alpha = 0.12f)))
+        // Labels the time section and sets it apart from the date above it: the
+        // label sits centered in the rule.
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            SectionRule(Modifier.weight(1f))
+            Text("Time", style = AppFont.caption, color = Color.appForeground.copy(alpha = 0.75f))
+            SectionRule(Modifier.weight(1f))
+        }
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             HourRow(selectedHour = selection.hour, cellSize = dayCellSize, onSelect = actions.selectHour)
@@ -829,6 +835,7 @@ private fun TripCalendar(
                             day = day,
                             isSelected = day.isInTrip && selectedDay == day.date,
                             isViewed = day.date == viewedDay,
+                            showsWeekday = true,
                             onSelect = { onSelectDay(day.date) },
                         )
                     }
@@ -869,6 +876,25 @@ fun CalendarDayGrid(
     }
 }
 
+/** The weekday over a day cell's number. Padding days' are all but faded out. */
+@Composable
+private fun WeekdayLabel(weekday: DayOfWeek, isSelected: Boolean, isInTrip: Boolean) {
+    val color by animateColorAsState(
+        if (isSelected) Color.Black.copy(alpha = 0.6f) else Color.appForeground.copy(alpha = if (isInTrip) 0.5f else 0.12f),
+        AppAnimation.snappy(0.15),
+        label = "weekday",
+    )
+    Text(weekday.shortLabel, style = weekdayLabelStyle, color = color, maxLines = 1)
+}
+
+private val weekdayLabelStyle = AppFont.system(9f, FontWeight.Medium).copy(letterSpacing = 1.sp, lineHeight = 11.sp)
+
+/** One side of the hairline that flanks the "Time" label. */
+@Composable
+private fun SectionRule(modifier: Modifier = Modifier) {
+    Box(modifier.height(1.dp).background(Color.appForeground.copy(alpha = 0.12f)))
+}
+
 /**
  * A square day; trip days can be tapped to select them, filling the cell like
  * the selected hour. Days outside the trip only pad the week. `isViewed` marks the
@@ -879,6 +905,7 @@ fun CalendarDayCell(
     day: TripCalendarGrid.Day,
     isSelected: Boolean,
     isViewed: Boolean = false,
+    showsWeekday: Boolean = false,
     onSelect: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -935,14 +962,19 @@ fun CalendarDayCell(
                 )
             }
         }
-        Text(
-            localDay.dayOfMonth.toString(),
-            style = (if (day.isInTrip) AppFont.subheadline.semibold else AppFont.subheadline).monospacedDigit,
-            color = textColor,
-            maxLines = 1,
-            // Read out as the cell's full date instead.
-            modifier = Modifier.clearAndSetSemantics {},
-        )
+        // Read out as the cell's full date instead.
+        Column(Modifier.clearAndSetSemantics {}, horizontalAlignment = Alignment.CenterHorizontally) {
+            // The weekday over the day number, so each square names its day without a
+            // header row. Padding days have theirs too, so their numbers still line up
+            // with the trip days'.
+            if (showsWeekday) WeekdayLabel(localDay.dayOfWeek, isSelected = isSelected, isInTrip = day.isInTrip)
+            Text(
+                localDay.dayOfMonth.toString(),
+                style = (if (day.isInTrip) AppFont.subheadline.semibold else AppFont.subheadline).monospacedDigit,
+                color = textColor,
+                maxLines = 1,
+            )
+        }
         // Marks the day being viewed in the itinerary; black on the cream selected
         // fill so it stays visible there too.
         if (isViewed) {

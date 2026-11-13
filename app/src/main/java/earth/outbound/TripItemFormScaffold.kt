@@ -543,6 +543,8 @@ fun TripItemPlaceField(
     onTypedEntryChange: ((String?) -> Unit)? = null,
     /** Floats the suggestions over the form; see `PlaceSearchField`'s `floatingResults`. */
     floatingResults: PlaceSearchFieldFloatingResults? = null,
+    /** Where suggestions come from; see `PlaceSearchField`'s `source`. */
+    source: PlaceSearchSource = PlaceSearchSource.Google,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -559,6 +561,7 @@ fun TripItemPlaceField(
             typedEntry = typedEntry,
             onTypedEntryChange = onTypedEntryChange,
             floatingResults = floatingResults,
+            source = source,
         )
     }
 }
