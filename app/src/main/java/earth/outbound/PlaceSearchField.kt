@@ -310,12 +310,10 @@ fun PlaceSearchField(
      * internal place.
      */
     fun select(suggestion: Suggestion) {
-        searchTask?.cancel()
+        clearSuggestions()
         onTextChange(suggestion.mainText)
         selected = suggestion
         offeringTypedEntry = false
-        suggestions = emptyList()
-        isSearching = false
         // A narrow floating field would stay scrolled to the name's end while focused.
         if (floatingResults != null) unfocus()
         resolve(suggestion)
@@ -326,12 +324,10 @@ fun PlaceSearchField(
      * doesn't know or a name that's no place at all.
      */
     fun useTypedEntry() {
-        searchTask?.cancel()
+        clearSuggestions()
         if (text != trimmedText) onTextChange(trimmedText)
         onTypedEntryChange?.invoke(trimmedText)
         offeringTypedEntry = false
-        suggestions = emptyList()
-        isSearching = false
         unfocus()
     }
 

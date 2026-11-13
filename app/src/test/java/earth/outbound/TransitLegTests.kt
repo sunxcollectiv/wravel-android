@@ -105,6 +105,8 @@ class TransitLegTests {
         val draft = TripItemDraft(tripId = "t", kind = TripItemKind.Transit)
         assertEquals(1, draft.legs.size)
         assertNotNull(draft.legs.firstOrNull()?.startsAt)
+        // A flight, the most common case.
+        assertEquals(TransitMode.Flight, draft.legs.firstOrNull()?.transitMode)
         assertTrue(TripItemDraft(tripId = "t", kind = TripItemKind.Activity).legs.isEmpty())
     }
 

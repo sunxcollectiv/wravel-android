@@ -614,7 +614,11 @@ data class TripItemDraft(
                 // item's own ends. A new one starts as a flight, the most common case.
                 else -> listOf(
                     TransitLeg(
-                        transitMode = if (item == null) TransitMode.Flight else item.transitMode.takeUnless { it == TransitMode.Mixed },
+                        transitMode = if (item == null) {
+                            TransitMode.Flight
+                        } else {
+                            item.transitMode.takeUnless { it == TransitMode.Mixed }
+                        },
                         startPlace = item?.place,
                         startPlaceText = item?.place?.name ?: "",
                         endPlace = item?.endPlace,
