@@ -9,6 +9,7 @@ import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Locale
 
 /**
  * The days of a trip laid out as full Sunday–Saturday weeks. Days before the start
@@ -97,3 +98,7 @@ data class Calendar(val timeZone: ZoneId, val firstWeekday: DayOfWeek) {
             get() = Calendar(timeZone = ZoneId.systemDefault(), firstWeekday = DayOfWeek.SUNDAY)
     }
 }
+
+/** The abbreviated weekday in caps, in the device's language: "THU". */
+val DayOfWeek.shortLabel: String
+    get() = getDisplayName(java.time.format.TextStyle.SHORT, Locale.getDefault()).uppercase()

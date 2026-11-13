@@ -137,9 +137,15 @@ data class ItineraryDay(
                     ),
                 )
             }
+            /** A stay as it applies to one day, for the lodging bar. */
+            fun stay(name: String, phase: LodgingPhase) =
+                LodgingStay(item(15, 0, TripItemKind.Lodging, name).item, phase)
+            // The lodging runs through every state of the bar: a check-in, a night in the
+            // middle of a stay, a changeover, a check-out, a day with nowhere booked, then
+            // a one-night stay (check-in one day, check-out the next).
             listOf(
                 ItineraryDay(
-                    date = "2026-11-01", dayNumber = 1, lodging = emptyList(),
+                    date = "2026-11-01", dayNumber = 1, lodging = listOf(stay("Park Hyatt Tokyo", LodgingPhase.CheckIn)),
                     entries = listOf(
                         item(12, 0, TripItemKind.Lodging, "Early check-in confirmed", notes = "Standard check-in 15:00"),
                         item(15, 0, TripItemKind.Activity, "Sean Salim arrives", notes = "NH 106 · joins from Osaka"),
@@ -150,15 +156,27 @@ data class ItineraryDay(
                     ),
                 ),
                 ItineraryDay(
-                    date = "2026-11-02", dayNumber = 2, lodging = emptyList(),
+                    date = "2026-11-02", dayNumber = 2, lodging = listOf(stay("Park Hyatt Tokyo", LodgingPhase.Staying)),
                     entries = listOf(item(9, 30, TripItemKind.Activity, "Tsukiji breakfast", notes = "Outer market")),
                 ),
-                ItineraryDay(date = "2026-11-03", dayNumber = 3, lodging = emptyList(), entries = emptyList()),
                 ItineraryDay(
-                    date = "2026-11-04", dayNumber = 4, lodging = emptyList(),
+                    date = "2026-11-03", dayNumber = 3,
+                    lodging = listOf(stay("Hoshinoya Kyoto", LodgingPhase.CheckIn), stay("Park Hyatt Tokyo", LodgingPhase.CheckOut)),
                     entries = listOf(item(11, 0, TripItemKind.Transit, "Shinkansen to Kyoto", notes = "Nozomi 221")),
                 ),
+                ItineraryDay(
+                    date = "2026-11-04", dayNumber = 4, lodging = listOf(stay("Hoshinoya Kyoto", LodgingPhase.CheckOut)),
+                    entries = emptyList(),
+                ),
                 ItineraryDay(date = "2026-11-05", dayNumber = 5, lodging = emptyList(), entries = emptyList()),
+                ItineraryDay(
+                    date = "2026-11-06", dayNumber = 6, lodging = listOf(stay("Koyasan Onsen Fukuchiin", LodgingPhase.CheckIn)),
+                    entries = emptyList(),
+                ),
+                ItineraryDay(
+                    date = "2026-11-07", dayNumber = 7, lodging = listOf(stay("Koyasan Onsen Fukuchiin", LodgingPhase.CheckOut)),
+                    entries = emptyList(),
+                ),
             )
         }
     }

@@ -10,6 +10,7 @@
 
 package earth.outbound
 
+import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -105,6 +106,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
@@ -152,8 +154,30 @@ object AppAnimation {
 
     private val easeInOutCurve = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)
 
+    /**
+     * The itinerary's steep ease in and out (cubic bezier 0.85, 0, 0.15, 1): slow at
+     * each end and quick through the middle, close to an expo in-out. A card's details
+     * fold open and shut on it, and the lodging bar slides between days on it.
+     */
+    fun <T> steepEase(duration: Double): FiniteAnimationSpec<T> =
+        tween((duration * 1000).toInt(), easing = steepEaseCurve)
+
+    private val steepEaseCurve = CubicBezierEasing(0.85f, 0f, 0.15f, 1f)
+
     /** A spring's stiffness for the response time SwiftUI describes it by. */
     private fun stiffness(duration: Double): Float = ((2 * PI / duration) * (2 * PI / duration)).toFloat()
+}
+
+/**
+ * Whether animations are turned off in the system settings, like SwiftUI's
+ * `accessibilityReduceMotion`: for motion to leave out rather than merely cut short.
+ */
+@Composable
+fun rememberReduceMotion(): Boolean {
+    val resolver = LocalContext.current.contentResolver
+    return remember(resolver) {
+        Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    }
 }
 
 // MARK: - Buttons

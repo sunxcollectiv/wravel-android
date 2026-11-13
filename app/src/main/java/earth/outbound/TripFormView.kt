@@ -803,9 +803,7 @@ private fun DateCalendar(date: LocalDate, earliest: LocalDate? = null, onDateCha
         Row(horizontalArrangement = Arrangement.spacedBy(DateTimePopupMetrics.cellSpacing)) {
             for (offset in 0L..6L) {
                 Text(
-                    calendar.firstWeekday.plus(offset)
-                        .getDisplayName(java.time.format.TextStyle.SHORT, Locale.getDefault())
-                        .uppercase(),
+                    calendar.firstWeekday.plus(offset).shortLabel,
                     style = AppFont.caption2.semibold,
                     color = Color.appForeground.copy(alpha = 0.5f),
                     textAlign = TextAlign.Center,

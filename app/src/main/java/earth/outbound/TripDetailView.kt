@@ -13,7 +13,6 @@ import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
-import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -23,7 +22,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.AnimationSpec
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.animate
@@ -37,7 +35,6 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
@@ -50,12 +47,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -64,15 +59,12 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBackIosNew
-import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Bed
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Schedule
@@ -121,15 +113,12 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -193,15 +182,13 @@ internal object TripDetailViewMetrics {
      * How long a card's details take to fold open or shut, and the page to scroll
      * the opened card into place.
      */
-    const val expandDuration: Double = 0.27
+    const val expandDuration: Double = 0.3
 
     /**
      * The curve a card's details fold open or shut on, with the page scrolling
-     * alongside: a steep ease in and out (cubic bezier 0.85, 0, 0.15, 1), slow at
-     * each end and quick through the middle, close to an expo in-out.
+     * alongside: the itinerary's steep ease in and out.
      */
-    fun <T> expandAnimation(): AnimationSpec<T> =
-        tween((expandDuration * 1000).toInt(), easing = CubicBezierEasing(0.85f, 0f, 0.15f, 1f))
+    fun <T> expandAnimation(): AnimationSpec<T> = AppAnimation.steepEase(expandDuration)
 
     /**
      * The least space left between the pinned block and an opened card too tall to
@@ -476,7 +463,7 @@ private class TripDetailModel(
     /** Bumped on each long press, to play a haptic as the edit form opens. */
     var editHaptic by mutableIntStateOf(0)
 
-    /** The day whose add-lodging popup is open, from tapping its empty lodging strip. */
+    /** The day whose add-lodging popup is open, from tapping its empty lodging bar. */
     var addLodgingDay by mutableStateOf<ItineraryDay?>(null)
 
     /**
@@ -956,8 +943,6 @@ private class TripDetailModel(
      * What to call a stay: its place's name, as the itinerary cards do, else its own
      * title (which may be something generic like "Check-in").
      */
-    fun lodgingName(stay: LodgingStay): String = lodgingName(stay.item)
-
     fun lodgingName(item: TripItem): String {
         val place = places.current(item.place)
         return place?.googlePlaceId?.let { placeDetails[it] }?.name ?: place?.name ?: item.displayTitle
@@ -1158,11 +1143,14 @@ private fun PinnedBlock(model: TripDetailModel, onBack: () -> Unit) {
     ) {
         Header(model, joinsLodging = selectedDay != null, onBack = onBack)
         if (selectedDay != null) {
-            if (selectedDay.lodging.isEmpty()) {
-                AddLodgingStrip(model, selectedDay)
-            } else {
-                LodgingStrip(model, selectedDay.lodging.sortedBy { it.phase.dayOrder })
-            }
+            LodgingBar(
+                dayNumber = selectedDay.dayNumber,
+                lodging = selectedDay.lodging,
+                name = model::lodgingName,
+                onOpen = model::showLodgingPopup,
+                onEdit = model::editItem,
+                onAdd = { model.addLodgingDay = selectedDay },
+            )
         }
     }
 }
@@ -1171,7 +1159,7 @@ private fun PinnedBlock(model: TripDetailModel, onBack: () -> Unit) {
  * A solid chip standing in for the navigation bar: back on the left, then the trip's
  * title and the day being viewed (left aligned, taking the free width, truncating the
  * title first), then more on the right, which opens the trip menu (adding items too).
- * Squared off at the bottom when the day's lodging strip hangs below it.
+ * Squared off at the bottom when the day's lodging bar hangs below it.
  */
 @Composable
 private fun Header(model: TripDetailModel, joinsLodging: Boolean, onBack: () -> Unit) {
@@ -1482,6 +1470,7 @@ private fun DayPage(
     topInset: Dp,
 ) {
     val density = LocalDensity.current
+    val isScrollLocked by rememberUpdatedState(scrollLocked)
     // One scroll state per day: a page starts at the top each time its day comes
     // back on display.
     val scroll = remember { ScrollState(0) }
@@ -1506,8 +1495,11 @@ private fun DayPage(
         modifier = Modifier
             .fillMaxSize()
             // Untouchable while an opened card scrolls into place, so a finger can't fight
-            // it. (Not by disabling scrolling, which a swipe between days does.)
-            .allowsHitTesting { !model.isAutoScrolling }
+            // it. (Not by disabling scrolling, which a swipe between days does.) And while
+            // the pages are swiped or slide to another day, so a swipe that starts on a
+            // card or a button moves the page without also tapping what's under the
+            // finger, and nothing on a page in motion can be tapped.
+            .allowsHitTesting { !model.isAutoScrolling && !isScrollLocked }
             .verticalScroll(scroll, enabled = !scrollLocked)
             .padding(horizontal = 16.dp)
             // Under the pinned block, which the cards scroll up behind.
@@ -1605,7 +1597,11 @@ private class LeavingEntry(val dayNumber: Int, val entry: ItineraryEntry, val af
     }
 }
 
-/** Stops touches from reaching what's inside while `enabled` says not to let them. */
+/**
+ * Stops touches from reaching what's inside while `enabled` says not to let them.
+ * `enabled` is kept from the first composition, so it must read state rather than
+ * capture a value.
+ */
 private fun Modifier.allowsHitTesting(enabled: () -> Boolean): Modifier =
     pointerInput(Unit) {
         awaitPointerEventScope {
@@ -1829,165 +1825,6 @@ private fun cardFadeStops(
     val cardBottom = cardTop + cardHeight
     val bends = listOf(topFadeEnd, topFadeStart, bottomFadeStart, detailHeight).filter { it > cardTop && it < cardBottom }
     return (listOf(cardTop) + bends + cardBottom).sorted().map { y -> (y - cardTop) / height to opacity(y) }
-}
-
-/**
- * The day's lodging as one band of equal-width halves, so a changeover day shows its
- * check-out and check-in side by side, split by a faint line. Square on top, where it
- * meets the header.
- *
- * A day with a lone check-in or check-out gives the stay 75% of the width and
- * hatches the rest, on the side with no lodging: before arriving, or after leaving.
- */
-@Composable
-private fun LodgingStrip(model: TripDetailModel, lodging: List<LodgingStay>) {
-    val modifier = Modifier
-        .fillMaxWidth()
-        .clip(lodgingStripShape)
-        // Plain translucent fill, dark enough that cards scrolling underneath don't
-        // compete with the lodging names.
-        .background(Color.white(0.12f, 0.8f))
-    val lone = lodging.singleOrNull()?.takeIf { it.phase != LodgingPhase.Staying }
-    if (lone != null) {
-        FractionSplit(leadingFraction = if (lone.phase == LodgingPhase.CheckIn) 0.25f else 0.75f, modifier = modifier) {
-            // A solid line marks where the stay begins or ends.
-            if (lone.phase == LodgingPhase.CheckIn) {
-                Box {
-                    DiagonalHatch(Modifier.matchParentSize())
-                    HatchEdge(Modifier.align(Alignment.CenterEnd))
-                }
-                LodgingRow(model, lone)
-            } else {
-                LodgingRow(model, lone)
-                Box {
-                    DiagonalHatch(Modifier.matchParentSize())
-                    HatchEdge(Modifier.align(Alignment.CenterStart))
-                }
-            }
-        }
-    } else {
-        // As tall as its rows, which sizes the separators to the strip's height.
-        Row(modifier.height(IntrinsicSize.Min)) {
-            lodging.forEachIndexed { index, stay ->
-                key(stay.item.id) {
-                    if (index > 0) {
-                        Box(Modifier.padding(vertical = 8.dp).width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.15f)))
-                    }
-                    LodgingRow(model, stay, Modifier.weight(1f))
-                }
-            }
-        }
-    }
-}
-
-private val lodgingStripShape = RoundedCornerShape(bottomStart = 10.dp, bottomEnd = 10.dp)
-
-/**
- * A fully hatched strip for a day with no lodging, inviting one to be added: opens
- * the add-lodging popup for that day.
- */
-@Composable
-private fun AddLodgingStrip(model: TripDetailModel, day: ItineraryDay) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(lodgingStripShape)
-            .background(Color.white(0.12f, 0.8f))
-            .plainClickable { model.addLodgingDay = day },
-        contentAlignment = Alignment.Center,
-    ) {
-        DiagonalHatch(Modifier.matchParentSize())
-        // Sized by an invisible line in the lodging rows' font, so the block keeps
-        // the same height when swiping between days with and without lodging.
-        Text(" ", style = AppFont.subheadline.semibold, modifier = Modifier.padding(vertical = 10.dp).alpha(0f).clearAndSetSemantics {})
-        ForegroundStyle(Color.appForeground.copy(alpha = 0.7f)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                Text("add lodging", style = AppFont.caption.semibold)
-            }
-        }
-    }
-}
-
-/** The solid line between a lone check-in or check-out and its hatched remainder. */
-@Composable
-private fun HatchEdge(modifier: Modifier = Modifier) {
-    Box(modifier.width(1.dp).fillMaxHeight().background(Color.white(0.35f)))
-}
-
-/**
- * A lodging chip: bed icon and name, with an arrow marking the phase, on the left
- * for a check-in (arriving) and on the right for a check-out (leaving). A stay in
- * progress shows "Staying" instead.
- */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun LodgingRow(model: TripDetailModel, stay: LodgingStay, modifier: Modifier = Modifier) {
-    val name = model.lodgingName(stay)
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                role = Role.Button,
-                onLongClickLabel = "Edit",
-                onLongClick = { model.editItem(stay.item) },
-                onClick = { model.showLodgingPopup(stay.item) },
-            )
-            .clearAndSetSemantics {
-                contentDescription = "$name, ${stay.phase.label}"
-                customActions = listOf(
-                    CustomAccessibilityAction("Edit") {
-                        model.editItem(stay.item)
-                        true
-                    },
-                )
-            }
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (stay.phase == LodgingPhase.CheckIn) {
-            LodgingArrow(Modifier.padding(end = 7.dp))
-        }
-        Icon(
-            stay.item.lodging?.propertyType?.systemImage ?: Icons.Rounded.Bed,
-            contentDescription = null,
-            modifier = Modifier.size(14.dp),
-        )
-        Text(
-            name,
-            style = AppFont.subheadline.semibold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        if (stay.phase == LodgingPhase.Staying) {
-            Text(
-                stay.phase.label,
-                style = AppFont.caption,
-                color = Color.appForeground.copy(alpha = 0.7f),
-                maxLines = 1,
-                softWrap = false,
-            )
-        }
-        if (stay.phase == LodgingPhase.CheckOut) {
-            LodgingArrow(Modifier.padding(start = 7.dp))
-        }
-    }
-}
-
-@Composable
-private fun LodgingArrow(modifier: Modifier = Modifier) {
-    Box(modifier.size(16.dp).background(Color.appForeground, CircleShape), contentAlignment = Alignment.Center) {
-        Icon(
-            Icons.AutoMirrored.Rounded.ArrowForward,
-            contentDescription = null,
-            tint = Color.white(0.15f),
-            modifier = Modifier.size(11.dp),
-        )
-    }
 }
 
 /** One word of the add line under a day's items, adding that kind on the day. */
@@ -2394,11 +2231,8 @@ private fun DayPager(
 
 /** Fades content in, optionally sliding it up, once `isRevealed` turns true. */
 private fun Modifier.revealIn(isRevealed: Boolean, delay: Double = 0.0, slide: Dp = 0.dp): Modifier = composed {
-    val resolver = LocalContext.current.contentResolver
     // With animations turned off in the system settings, nothing slides.
-    val reduceMotion = remember(resolver) {
-        Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }
+    val reduceMotion = rememberReduceMotion()
     val revealed by animateFloatAsState(
         targetValue = if (isRevealed) 1f else 0f,
         animationSpec = tween(durationMillis = 350, delayMillis = (delay * 1000).toInt(), easing = EaseOut),
@@ -2407,49 +2241,6 @@ private fun Modifier.revealIn(isRevealed: Boolean, delay: Double = 0.0, slide: D
     graphicsLayer {
         alpha = revealed
         translationY = if (reduceMotion) 0f else (1 - revealed) * slide.toPx()
-    }
-}
-
-/**
- * Lays out two views side by side, the first taking `leadingFraction` of the width and
- * the second the rest, both as tall as the taller of the two.
- */
-@Composable
-private fun FractionSplit(leadingFraction: Float, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Layout(content = content, modifier = modifier) { measurables, constraints ->
-        val total = constraints.maxWidth
-        val leadingWidth = (total * leadingFraction).roundToInt()
-        val widths = listOf(leadingWidth, total - leadingWidth)
-        val height = measurables.zip(widths).maxOfOrNull { (measurable, width) -> measurable.minIntrinsicHeight(width) } ?: 0
-        val placeables = measurables.zip(widths).map { (measurable, width) ->
-            measurable.measure(Constraints.fixed(width, height))
-        }
-        layout(total, height) {
-            var x = 0
-            for (placeable in placeables) {
-                placeable.place(x, 0)
-                x += placeable.width
-            }
-        }
-    }
-}
-
-/**
- * Faint diagonal stripes filling the space they're given, marking part of the lodging
- * strip with no stay.
- */
-@Composable
-private fun DiagonalHatch(modifier: Modifier = Modifier) {
-    Canvas(modifier.clearAndSetSemantics {}) {
-        val spacing = 7.dp.toPx()
-        val color = Color.White.copy(alpha = 0.07f)
-        clipRect {
-            var x = -size.height
-            while (x < size.width) {
-                drawLine(color, Offset(x, size.height), Offset(x + size.height, 0f), strokeWidth = 1.dp.toPx())
-                x += spacing
-            }
-        }
     }
 }
 
