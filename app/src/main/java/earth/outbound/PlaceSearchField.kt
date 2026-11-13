@@ -90,14 +90,24 @@ data class PlaceSearchFieldFloatingResults(
     enum class Edge { Leading, Trailing }
 }
 
+/** Where a `PlaceSearchField` looks for places. */
+enum class PlaceSearchSource {
+    /** A broad Google Places search, registering the pick in our DB. */
+    Google,
+
+    /** Only the airports in our own DB, by IATA code or name. */
+    Airports,
+}
+
 /**
- * A text field that doubles as a Google Places search. Typing shows autocomplete
- * suggestions; picking one fills the field, registers the place in our DB via
- * `POST /places`, and reports the resulting internal `Place` back through
+ * A text field that doubles as a place search. Typing shows suggestions; picking one
+ * fills the field and reports the internal `Place` back through
  * `onResolvedPlaceChange` (its `id` is what a trip item references as `place_id`).
  *
- * The registration fires on selection regardless of whether the surrounding form is
- * ultimately submitted.
+ * By default it searches Google Places, and a pick registers the place in our DB via
+ * `POST /places` (whether or not the surrounding form is ultimately submitted). With
+ * the `Airports` source it searches only the airports already in our DB, so a pick
+ * is the place itself and needs no registering.
  */
 @Composable
 fun PlaceSearchField(
@@ -128,12 +138,19 @@ fun PlaceSearchField(
      * focused, instead of pushing it down.
      */
     floatingResults: PlaceSearchFieldFloatingResults? = null,
+    /** Where suggestions come from. */
+    source: PlaceSearchSource = PlaceSearchSource.Google,
     modifier: Modifier = Modifier,
 ) {
-    var suggestions by remember { mutableStateOf(listOf<PlaceSuggestion>()) }
+    var suggestions by remember { mutableStateOf(listOf<Suggestion>()) }
     var isSearching by remember { mutableStateOf(false) }
     var searchTask by remember { mutableStateOf<Job?>(null) }
-    var selected by remember { mutableStateOf<PlaceSuggestion?>(null) }
+    var selected by remember { mutableStateOf<Suggestion?>(null) }
+    /**
+     * The last search that came back, to tell "no matches" from "not searched yet"
+     * (or a search that failed, which shows its error instead).
+     */
+    var searchedQuery by remember { mutableStateOf<String?>(null) }
     var isResolving by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
     /** Whether the "use as typed" row is up: from typing until a row is chosen. */
@@ -167,6 +184,26 @@ fun PlaceSearchField(
 
     val trimmedText = text.trim()
     val showsTypedEntryRow = onTypedEntryChange != null && offeringTypedEntry && trimmedText.isNotEmpty()
+    // Our airport list is limited, so an airport search that finds nothing says so,
+    // rather than leaving the field looking unresponsive.
+    val showsNoMatches = source == PlaceSearchSource.Airports && isFocused && !isSearching &&
+        suggestions.isEmpty() && searchedQuery == trimmedText
+
+    fun clearSuggestions() {
+        searchTask?.cancel()
+        suggestions = emptyList()
+        searchedQuery = null
+        isSearching = false
+    }
+
+    // A different source makes the open suggestions stale.
+    LaunchedEffect(source) { clearSuggestions() }
+
+    /** Runs the query against the field's source. */
+    suspend fun search(query: String): List<Suggestion> = when (source) {
+        PlaceSearchSource.Google -> places.autocomplete(query).map(::Suggestion)
+        PlaceSearchSource.Airports -> api.send<List<Place>>(PlacesAPI.searchAirports(query)).map(::Suggestion)
+    }
 
     fun unfocus() {
         if (isFocused) focusManager.clearFocus()
@@ -184,11 +221,12 @@ fun PlaceSearchField(
         offeringTypedEntry = true
         errorText = null
 
+        // Earlier suggestions stay up until the new search answers.
         searchTask?.cancel()
+        searchedQuery = null
         val query = newValue.trim()
         if (query.codePointCount(0, query.length) < 2) {
-            suggestions = emptyList()
-            isSearching = false
+            clearSuggestions()
             return
         }
 
@@ -196,31 +234,32 @@ fun PlaceSearchField(
         searchTask = scope.launch {
             // Debounce so we don't fire a request on every keystroke.
             delay(300.milliseconds)
-            suggestions = try {
-                places.autocomplete(query)
+            try {
+                suggestions = search(query)
+                searchedQuery = query
             } catch (error: CancellationException) {
                 throw error
-            } catch (_: Exception) {
-                emptyList()
+            } catch (error: Exception) {
+                suggestions = emptyList()
+                // Said rather than swallowed, so a failing search (say, no Google key
+                // in Secrets.json) doesn't look like one that found nothing.
+                errorText = error.localizedDescription
             }
             isSearching = false
         }
     }
 
     /**
-     * Sends the selected Google place to `POST /places` so the backend registers it in
-     * our places DB, and keeps the returned internal place.
+     * Sends a picked Google place to `POST /places` so the backend registers it in our
+     * places DB, and keeps the returned internal place.
      */
-    fun resolve(suggestion: PlaceSuggestion) {
-        onResolvedPlaceChange(null)
-        onResolvedTimeZoneChange?.invoke(null)
-        errorText = null
+    fun register(googlePlace: PlaceSuggestion, suggestion: Suggestion) {
         isResolving = true
         scope.launch {
             // Whether the user changed the selection while this was in flight.
-            fun isStale() = selected?.placeId != suggestion.placeId
+            fun isStale() = selected?.id != suggestion.id
             try {
-                val place = api.send<Place>(PlacesAPI.create(googlePlaceId = suggestion.placeId))
+                val place = api.send<Place>(PlacesAPI.create(googlePlaceId = googlePlace.placeId))
                 if (isStale()) return@launch
                 currentOnResolvedPlaceChange(place)
 
@@ -228,7 +267,7 @@ fun PlaceSearchField(
                 // back to the backend place's zone if Google doesn't report one.
                 if (currentOnResolvedTimeZoneChange != null) {
                     val googleZone = try {
-                        places.placeTimeZone(placeId = suggestion.placeId)
+                        places.placeTimeZone(placeId = googlePlace.placeId)
                     } catch (error: CancellationException) {
                         throw error
                     } catch (_: Exception) {
@@ -248,10 +287,29 @@ fun PlaceSearchField(
     }
 
     /**
-     * Fills the text from a chosen suggestion, dismisses the list, and resolves the
-     * place into our own database.
+     * Keeps the internal place behind the chosen suggestion: one from our own DB as is,
+     * or a Google one once it's registered.
      */
-    fun select(suggestion: PlaceSuggestion) {
+    fun resolve(suggestion: Suggestion) {
+        onResolvedPlaceChange(null)
+        onResolvedTimeZoneChange?.invoke(null)
+        errorText = null
+
+        when (val origin = suggestion.origin) {
+            // Already in our DB, so there's nothing to register.
+            is Suggestion.Origin.Internal -> {
+                onResolvedPlaceChange(origin.place)
+                onResolvedTimeZoneChange?.invoke(origin.place.timeZone)
+            }
+            is Suggestion.Origin.Google -> register(origin.prediction, suggestion)
+        }
+    }
+
+    /**
+     * Fills the text from a chosen suggestion, dismisses the list, and resolves its
+     * internal place.
+     */
+    fun select(suggestion: Suggestion) {
         searchTask?.cancel()
         onTextChange(suggestion.mainText)
         selected = suggestion
@@ -281,6 +339,8 @@ fun PlaceSearchField(
         Results(
             suggestions = suggestions,
             isSearching = isSearching,
+            searchingText = if (source == PlaceSearchSource.Airports) "Searching airports…" else "Searching places…",
+            noMatchesText = "No airports match \"$trimmedText\"".takeIf { showsNoMatches },
             typedEntry = trimmedText.takeIf { showsTypedEntryRow },
             isFloating = floatingResults != null,
             onSelect = ::select,
@@ -339,12 +399,44 @@ fun PlaceSearchField(
             typedEntry = typedEntry,
             isResolving = isResolving,
             resolvedPlace = resolvedPlace,
-            selected = selected,
+            selectedDetail = selected?.secondaryText,
             errorText = errorText,
             // One line beside a neighboring field, so the two stay level.
             maxLines = if (floatingResults == null) Int.MAX_VALUE else 1,
         )
     }
+}
+
+/** One row in the suggestions: a Google prediction, or a place from our own DB. */
+private data class Suggestion(
+    val id: String,
+    val mainText: String,
+    val secondaryText: String?,
+    val origin: Origin,
+) {
+    sealed interface Origin {
+        data class Google(val prediction: PlaceSuggestion) : Origin
+        data class Internal(val place: Place) : Origin
+    }
+
+    constructor(google: PlaceSuggestion) : this(
+        id = "google:${google.placeId}",
+        mainText = google.mainText,
+        secondaryText = google.secondaryText,
+        origin = Origin.Google(google),
+    )
+
+    /**
+     * An airport reads as its name over its code and where it is, e.g.
+     * "Los Angeles International Airport" over "LAX · Los Angeles, United States".
+     */
+    constructor(place: Place) : this(
+        id = "place:${place.id}",
+        mainText = place.name ?: place.code ?: "Unnamed place",
+        secondaryText = listOfNotNull(place.code, place.address).filter { it.isNotEmpty() }
+            .joinToString(" · ").ifEmpty { null },
+        origin = Origin.Internal(place),
+    )
 }
 
 /** The gap between the field and suggestions floating below it. */
@@ -383,19 +475,21 @@ private fun FieldWithFloatingResults(
 
 /**
  * The autocomplete suggestions list shown beneath the field, opening with the row
- * for taking `typedEntry` as it is when that's offered. Nothing while there's
- * nothing to show.
+ * for taking `typedEntry` as it is when that's offered, and saying `noMatchesText`
+ * when a search found nothing. Nothing while there's nothing to show.
  */
 @Composable
 private fun Results(
-    suggestions: List<PlaceSuggestion>,
+    suggestions: List<Suggestion>,
     isSearching: Boolean,
+    searchingText: String,
+    noMatchesText: String?,
     typedEntry: String?,
     isFloating: Boolean,
-    onSelect: (PlaceSuggestion) -> Unit,
+    onSelect: (Suggestion) -> Unit,
     onUseTypedEntry: () -> Unit,
 ) {
-    if (!isSearching && suggestions.isEmpty() && typedEntry == null) return
+    if (!isSearching && suggestions.isEmpty() && typedEntry == null && noMatchesText == null) return
     val shape = RoundedCornerShape(appFieldCornerRadius)
     Column(
         Modifier
@@ -431,12 +525,21 @@ private fun Results(
             ) {
                 ProgressView()
                 Text(
-                    "Searching places…",
+                    searchingText,
                     style = AppFont.footnote,
                     color = Color.appForeground.copy(alpha = 0.7f),
                 )
                 Spacer(Modifier.weight(1f))
             }
+        }
+
+        if (noMatchesText != null) {
+            Text(
+                noMatchesText,
+                style = AppFont.footnote,
+                color = Color.appForeground.copy(alpha = 0.7f),
+                modifier = Modifier.fillMaxWidth().padding(14.dp),
+            )
         }
 
         suggestions.forEachIndexed { index, suggestion ->
@@ -489,7 +592,8 @@ private fun Status(
     typedEntry: String?,
     isResolving: Boolean,
     resolvedPlace: Place?,
-    selected: PlaceSuggestion?,
+    /** The picked suggestion's second line, to show until the place has an address. */
+    selectedDetail: String?,
     errorText: String?,
     maxLines: Int,
 ) {
@@ -500,7 +604,7 @@ private fun Status(
             StatusLabel("Saving place…", Icons.Rounded.PinDrop, Color.appForeground.copy(alpha = 0.7f), maxLines)
         resolvedPlace != null ->
             StatusLabel(
-                resolvedPlace.address ?: selected?.secondaryText ?: "Place saved",
+                resolvedPlace.address ?: selectedDetail ?: "Place saved",
                 Icons.Rounded.CheckCircle,
                 Color.appForeground.copy(alpha = 0.8f),
                 maxLines,

@@ -306,6 +306,8 @@ private fun LegFields(
     /** Width of the origin/destination row, so each field's suggestions can span it. */
     var rowWidth by remember { mutableStateOf<Dp?>(null) }
     val density = LocalDensity.current
+    // A flight's ends are picked from our own airports rather than all of Google.
+    val placeSource = if (leg.transitMode == TransitMode.Flight) PlaceSearchSource.Airports else PlaceSearchSource.Google
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ModePicker(transitMode = leg.transitMode, onTransitModeChange = { mode -> updateLeg { it.copy(transitMode = mode) } })
@@ -332,6 +334,7 @@ private fun LegFields(
                     width = rowWidth,
                     edge = PlaceSearchFieldFloatingResults.Edge.Leading,
                 ),
+                source = placeSource,
                 modifier = Modifier.weight(1f),
             )
             TripItemPlaceField(
@@ -346,6 +349,7 @@ private fun LegFields(
                     width = rowWidth,
                     edge = PlaceSearchFieldFloatingResults.Edge.Trailing,
                 ),
+                source = placeSource,
                 modifier = Modifier.weight(1f),
             )
         }
