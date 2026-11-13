@@ -5,6 +5,7 @@
 
 package earth.outbound.networking
 
+import android.os.Build
 import earth.outbound.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -54,11 +55,23 @@ import kotlin.time.Duration
 
 object APIConfig {
     /**
-     * Debug builds (run from Android Studio) talk to the local dev server; release
-     * builds use production. The emulator reaches a server running on the same
-     * machine at `10.0.2.2`.
+     * Debug builds (run from Android Studio) talk to the local dev server on the
+     * emulator, which reaches a server running on the same machine at `10.0.2.2`,
+     * and to production on a physical device. Release builds always use production.
      */
-    val baseURL: HttpUrl = BuildConfig.API_BASE_URL.toHttpUrl()
+    val baseURL: HttpUrl =
+        (if (isEmulator) BuildConfig.EMULATOR_API_BASE_URL else BuildConfig.API_BASE_URL).toHttpUrl()
+}
+
+/** True when running on an Android emulator rather than a physical device. */
+private val isEmulator: Boolean by lazy {
+    val fingerprint = Build.FINGERPRINT.orEmpty()
+    val hardware = Build.HARDWARE.orEmpty()
+    val product = Build.PRODUCT.orEmpty()
+    fingerprint.startsWith("generic") ||
+        fingerprint.contains("emulator") ||
+        hardware == "goldfish" || hardware == "ranchu" ||
+        product.startsWith("sdk") || product.contains("emulator") || product.contains("simulator")
 }
 
 enum class HTTPMethod {
