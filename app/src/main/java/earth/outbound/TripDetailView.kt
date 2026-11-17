@@ -172,6 +172,9 @@ internal object TripDetailViewMetrics {
     /** How far below the pinned block cards start fading once a page is scrolled. */
     val topFadeReach: Dp = 60.dp
 
+    /** The space between the status bar and the pinned block's header. */
+    val pinnedBlockTopPadding: Dp = 8.dp
+
     /** The space under the pinned block before the itinerary starts. */
     val pinnedBlockBottomPadding: Dp = 8.dp
 
@@ -1136,7 +1139,7 @@ private fun PinnedBlock(model: TripDetailModel, onBack: () -> Unit) {
                 model.detailTop = model.positionOnScreen(it).y + it.size.height
             }
             .padding(horizontal = 16.dp)
-            .padding(bottom = TripDetailViewMetrics.pinnedBlockBottomPadding)
+            .padding(top = TripDetailViewMetrics.pinnedBlockTopPadding, bottom = TripDetailViewMetrics.pinnedBlockBottomPadding)
             .revealIn(model.hasRevealed || model.days == null)
             // Touches on the block stop here, rather than scrolling the page behind it.
             .pointerInput(Unit) {},
@@ -1441,7 +1444,7 @@ private fun DayPager(model: TripDetailModel, days: List<ItineraryDay>) {
             .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
             .drawWithContent {
                 drawContent()
-                val inset = TripDetailViewMetrics.pinnedBlockBottomPadding.toPx()
+                val inset = (TripDetailViewMetrics.pinnedBlockTopPadding + TripDetailViewMetrics.pinnedBlockBottomPadding).toPx()
                 val top = model.detailTop - maxOf(model.pinnedHeight - inset, 0f)
                 val fade = 32.dp.toPx()
                 if (size.height > 0f && top + fade > 0f) {
