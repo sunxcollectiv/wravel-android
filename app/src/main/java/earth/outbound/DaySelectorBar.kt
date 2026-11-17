@@ -87,7 +87,8 @@ enum class HorizontalEdge { Leading, Trailing }
  * The selected day is a filled cream disc; tapping a day scrubs the pager and the
  * bar stays in sync with the current `selection`.
  *
- * Days scroll horizontally — about five fit across the width at once — and the row
+ * Days scroll horizontally, a fixed gap apart, so how many show at once depends on
+ * the screen's width (about five on a typical phone), and the row
  * can be slid freely to any day. Whenever `selection` changes (a tap here, or a
  * swipe of the itinerary itself), the selected day animates back to center.
  *
@@ -150,15 +151,13 @@ fun DaySelectorBar(
         ) {
             BoxWithConstraints(Modifier.fillMaxWidth().height(circleSize)) {
                 val width = constraints.maxWidth.toFloat()
-                // A fade band at each edge doubles as the side margin: five cells fill the
-                // space between the two bands and stay fully opaque, while days scrolling
-                // past fade out through the band (see edgeFadeMask).
+                // A fade band at each edge: days scrolling past fade out through it (see
+                // edgeFadeMask).
                 val fadeZone = with(density) { 36.dp.toPx() }
-                val circle = with(density) { circleSize.toPx() }
-                // Five circles fit between the fade bands; widen the gap between them by 20%.
-                val baseGap = (width - fadeZone * 2) / 5 - circle
-                // In whole pixels, so the trip lines stay in step with the cells as laid out.
-                val cellWidth = max(circle + baseGap * 1.2f, 1f).roundToInt()
+                // The same gap between circles on every screen; a wider screen shows more
+                // days rather than spreading them apart. In whole pixels, so the trip lines
+                // stay in step with the cells as laid out.
+                val cellWidth = with(density) { (circleSize + circleGap).toPx() }.roundToInt()
                 val sideInset = (width - cellWidth) / 2
                 // The add-segment buttons sit in the side insets, so the first and last
                 // days still scroll to center.
@@ -253,6 +252,9 @@ object DaySelectorBarMetrics {
 
 /** A day's circle, and the height of the row. */
 private val circleSize = 56.dp
+
+/** The space between neighboring day circles, whatever the screen's width. */
+private val circleGap = 14.dp
 
 /** The trip line's thickness, and the break between trips. */
 private val tripLineHeight = 5.dp
