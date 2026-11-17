@@ -173,7 +173,7 @@ internal object TripDetailViewMetrics {
     val topFadeReach: Dp = 60.dp
 
     /** The space between the status bar and the pinned block's header. */
-    val pinnedBlockTopPadding: Dp = 8.dp
+    val pinnedBlockTopPadding: Dp = 16.dp
 
     /** The space under the pinned block before the itinerary starts. */
     val pinnedBlockBottomPadding: Dp = 8.dp
