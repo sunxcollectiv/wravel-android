@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -48,17 +49,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -87,13 +91,14 @@ enum class HorizontalEdge { Leading, Trailing }
  * The selected day is a filled cream disc; tapping a day scrubs the pager and the
  * bar stays in sync with the current `selection`.
  *
- * Days scroll horizontally — about five fit across the width at once — and the row
+ * Days scroll horizontally, a fixed gap apart, so how many show at once depends on
+ * the screen's width (about five on a typical phone), and the row
  * can be slid freely to any day. Whenever `selection` changes (a tap here, or a
  * swipe of the itinerary itself), the selected day animates back to center.
  *
- * The bar keeps its row of days clear of the navigation bar itself (unless whoever
- * places it already has), and draws its backdrop and the trip lines on down to the
- * screen's bottom edge.
+ * The bar keeps its row of days low over the trip lines' glow and clear of the
+ * navigation bar (see `DaySelectorBarMetrics.bottomInsets`), and draws its backdrop
+ * and the trip lines on down to the screen's bottom edge.
  */
 @Composable
 fun DaySelectorBar(
@@ -120,16 +125,16 @@ fun DaySelectorBar(
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
-    /** The bar's height with and without the room it keeps for the navigation bar, in pixels. */
+    /** The bar's height with and without the room it keeps below the row, in pixels. */
     var height by remember { mutableIntStateOf(0) }
     var rowHeight by remember { mutableIntStateOf(0) }
-    /** The room below the row down to the screen's bottom edge, where the trip lines sit, in pixels. */
+    /** The room below the row down to the screen's bottom edge, where the trip lines glow, in pixels. */
     val bottomInset = max(height - rowHeight, 0).toFloat()
     val cells = remember(days) { cells(days) }
     val runs = remember(cells) { tripRuns(cells) }
     val screenCornerRadius = screenCornerRadius()
 
-    Box(modifier.fillMaxWidth().onSizeChanged { height = it.height }.windowInsetsPadding(WindowInsets.navigationBars)) {
+    Box(modifier.fillMaxWidth().onSizeChanged { height = it.height }.windowInsetsPadding(DaySelectorBarMetrics.bottomInsets)) {
         Box(
             Modifier
                 .fillMaxWidth()
@@ -150,15 +155,13 @@ fun DaySelectorBar(
         ) {
             BoxWithConstraints(Modifier.fillMaxWidth().height(circleSize)) {
                 val width = constraints.maxWidth.toFloat()
-                // A fade band at each edge doubles as the side margin: five cells fill the
-                // space between the two bands and stay fully opaque, while days scrolling
-                // past fade out through the band (see edgeFadeMask).
+                // A fade band at each edge: days scrolling past fade out through it (see
+                // edgeFadeMask).
                 val fadeZone = with(density) { 36.dp.toPx() }
-                val circle = with(density) { circleSize.toPx() }
-                // Five circles fit between the fade bands; widen the gap between them by 20%.
-                val baseGap = (width - fadeZone * 2) / 5 - circle
-                // In whole pixels, so the trip lines stay in step with the cells as laid out.
-                val cellWidth = max(circle + baseGap * 1.2f, 1f).roundToInt()
+                // The same gap between circles on every screen; a wider screen shows more
+                // days rather than spreading them apart. In whole pixels, so the trip lines
+                // stay in step with the cells as laid out.
+                val cellWidth = with(density) { (circleSize + circleGap).toPx() }.roundToInt()
                 val sideInset = (width - cellWidth) / 2
                 // The add-segment buttons sit in the side insets, so the first and last
                 // days still scroll to center.
@@ -249,14 +252,42 @@ object DaySelectorBarMetrics {
      * the circles start, the bottom of the band it centers an opened card in.
      */
     val fadeHeight: Dp = 40.dp
+
+    /**
+     * How tall the trip lines' glow is, up from the screen's bottom edge: brightest
+     * at the edge, fading out toward the top.
+     */
+    val glowHeight: Dp = 50.dp
+
+    /**
+     * The least room kept below the row of days, up from the screen's bottom edge.
+     * Less than the glow, so the circles sit over its faint upper part.
+     */
+    val rowBottomSpace: Dp = 34.dp
+
+    /**
+     * The room kept below the row of days: `rowBottomSpace`, or the navigation bar
+     * where that's taller. Whatever sits just above the day picker (the pills, the
+     * itinerary's bottom space) measures from here too.
+     */
+    val bottomInsets: WindowInsets
+        @Composable get() = WindowInsets.navigationBars.union(WindowInsets(bottom = rowBottomSpace))
 }
 
 /** A day's circle, and the height of the row. */
 private val circleSize = 56.dp
 
-/** The trip line's thickness, and the break between trips. */
-private val tripLineHeight = 5.dp
+/** The space between neighboring day circles, whatever the screen's width. */
+private val circleGap = 14.dp
+
+/** The break in the trip lines between one trip and the next. */
 private val tripLineBreak = 8.dp
+
+/**
+ * The glow's brightest band at the bottom: where the screen's corner curve cuts it
+ * off, the lines fade out across the width (see cornerFade).
+ */
+private val glowCoreHeight = 5.dp
 
 /**
  * The radius of the screen's bottom corners in pixels, zero where the system doesn't
@@ -316,10 +347,11 @@ private fun tripRuns(cells: List<Cell>): List<TripRun> {
 }
 
 /**
- * A white line under each run of days on one trip, reaching the screen edges at the
- * ends of the journey, with a short break where one trip meets the next and none
- * under gap days. `origin` is where the leading plus cell starts on screen, and
- * `bottom` where the lines' bottom edge sits.
+ * A white glow under each run of days on one trip, rising from the screen's bottom
+ * edge and fading out toward its top, reaching the screen edges at the ends of the
+ * journey, with a short break where one trip meets the next and none under gap days.
+ * `origin` is where the leading plus cell starts on screen, and `bottom` where the
+ * glow's bottom edge sits.
  */
 private fun DrawScope.drawTripLines(
     runs: List<TripRun>,
@@ -330,9 +362,44 @@ private fun DrawScope.drawTripLines(
     bottom: Float,
     screenCornerRadius: Float,
 ) {
-    val height = tripLineHeight.toPx()
+    // On a whole pixel: a top that falls mid-pixel leaves a sliver of that row of the
+    // lines outside the fade, a hard bright line along the glow's top.
+    val top = (bottom - DaySelectorBarMetrics.glowHeight.toPx()).roundToInt().toFloat()
+    val glowBounds = Rect(0f, top, size.width, bottom)
+    // Drawn whole into a layer, then faded from the bottom edge up, so the solid and
+    // hatched stretches fade alike.
+    drawIntoCanvas { it.saveLayer(glowBounds, Paint()) }
+    drawTripLineRuns(runs, cellCount, primaryTripId, cellWidth, origin, top = top, bottom = bottom, screenCornerRadius)
+    drawRect(
+        Brush.verticalGradient(
+            0f to Color.Transparent,
+            // Eased, so it reads as light rising off the edge rather than a flat ramp.
+            0.55f to Color.Black.copy(alpha = 0.12f),
+            // Never fully opaque, even at the edge: a soft glow, not a bar.
+            1f to Color.Black.copy(alpha = 0.5f),
+            startY = top,
+            endY = bottom,
+        ),
+        topLeft = glowBounds.topLeft,
+        size = glowBounds.size,
+        blendMode = BlendMode.DstIn,
+    )
+    drawIntoCanvas { it.restore() }
+}
+
+/** The trip lines at full strength, from `top` down to `bottom`, before the glow's fade. */
+private fun DrawScope.drawTripLineRuns(
+    runs: List<TripRun>,
+    cellCount: Int,
+    primaryTripId: String?,
+    cellWidth: Float,
+    origin: Float,
+    top: Float,
+    bottom: Float,
+    screenCornerRadius: Float,
+) {
+    val height = bottom - top
     val lineBreak = tripLineBreak.toPx()
-    val top = bottom - height
     clipRect(left = 0f, top = top, right = size.width, bottom = bottom) {
         runs.forEachIndexed { position, run ->
             val touchesPrevious = position > 0 && runs[position - 1].last == run.first - 1
@@ -385,8 +452,8 @@ private fun DrawScope.drawTripLines(
 private fun DrawScope.cornerFade(color: Color, width: Float, screenCornerRadius: Float): Brush {
     val r = screenCornerRadius
     if (r <= 0f || width <= 0f) return SolidColor(color)
-    // How far in from the edge the curve is at the line's top.
-    val inner = max(r - tripLineHeight.toPx(), 0f)
+    // How far in from the edge the curve is at the top of the glow's bright core.
+    val inner = max(r - glowCoreHeight.toPx(), 0f)
     val lost = r - sqrt(r * r - inner * inner)
     // The fade starts a little inside the curve, so it's well underway by the corner.
     val clear = min(lost / width, 0.5f)

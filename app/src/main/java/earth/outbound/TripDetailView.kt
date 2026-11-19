@@ -54,8 +54,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -172,6 +172,9 @@ internal object TripDetailViewMetrics {
     /** How far below the pinned block cards start fading once a page is scrolled. */
     val topFadeReach: Dp = 60.dp
 
+    /** The space between the status bar and the pinned block's header. */
+    val pinnedBlockTopPadding: Dp = 16.dp
+
     /** The space under the pinned block before the itinerary starts. */
     val pinnedBlockBottomPadding: Dp = 8.dp
 
@@ -248,7 +251,8 @@ fun TripDetailView(
     val model = remember(trip.id) { TripDetailModel(trip, days, auth, credits, animationScope) }
     val density = LocalDensity.current
     val connectivity = Connectivity.shared
-    val bottomInset = WindowInsets.navigationBars.getBottom(density).toFloat()
+    // The room kept under the day picker (its glow, or the navigation bar).
+    val bottomInset = DaySelectorBarMetrics.bottomInsets.getBottom(density).toFloat()
     SideEffect {
         model.groupTrips = groupTrips
         model.onSegmentCreated = onSegmentCreated
@@ -500,11 +504,11 @@ private class TripDetailModel(
      */
     var detailTop by mutableFloatStateOf(0f)
 
-    /** The screen's height, and the navigation bar's strip at its bottom, in pixels. */
+    /** The screen's height, and the strip kept under the day picker at its bottom (its glow, or the navigation bar), in pixels. */
     var screenHeight by mutableFloatStateOf(0f)
     var bottomInset by mutableFloatStateOf(0f)
 
-    /** How tall the detail space is: from the pinned block down to the navigation bar. */
+    /** How tall the detail space is: from the pinned block down to the strip under the day picker. */
     val detailHeight: Float get() = screenHeight - detailTop - bottomInset
 
     /**
@@ -1136,7 +1140,7 @@ private fun PinnedBlock(model: TripDetailModel, onBack: () -> Unit) {
                 model.detailTop = model.positionOnScreen(it).y + it.size.height
             }
             .padding(horizontal = 16.dp)
-            .padding(bottom = TripDetailViewMetrics.pinnedBlockBottomPadding)
+            .padding(top = TripDetailViewMetrics.pinnedBlockTopPadding, bottom = TripDetailViewMetrics.pinnedBlockBottomPadding)
             .revealIn(model.hasRevealed || model.days == null)
             // Touches on the block stop here, rather than scrolling the page behind it.
             .pointerInput(Unit) {},
@@ -1257,7 +1261,7 @@ private fun BoxScope.ImportProgressPillOverlay(model: TripDetailModel) {
 
     AnimatedVisibility(
         visible = step != null,
-        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding(),
+        modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(DaySelectorBarMetrics.bottomInsets),
         enter = slideInVertically(AppAnimation.snappy()) { drop } + fadeIn(AppAnimation.snappy()),
         exit = slideOutVertically(AppAnimation.snappy()) { drop } + fadeOut(AppAnimation.snappy()),
     ) {
@@ -1287,7 +1291,7 @@ private fun BoxScope.OfflinePillAnchor(model: TripDetailModel) {
     Box(
         Modifier
             .align(Alignment.BottomCenter)
-            .navigationBarsPadding()
+            .windowInsetsPadding(DaySelectorBarMetrics.bottomInsets)
             .fillMaxWidth()
             .height(TripDetailViewMetrics.dayPickerClearance)
             .offlinePillAnchor(
@@ -1304,7 +1308,7 @@ private fun BoxScope.OfflinePillAnchor(model: TripDetailModel) {
 private fun BoxScope.ToastView(toast: TripToast?) {
     AnimatedContent(
         targetState = toast,
-        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding(),
+        modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(DaySelectorBarMetrics.bottomInsets),
         transitionSpec = {
             (slideInVertically(AppAnimation.snappy(0.25)) { it } + fadeIn(AppAnimation.snappy(0.25)))
                 .togetherWith(slideOutVertically(AppAnimation.snappy(0.25)) { it } + fadeOut(AppAnimation.snappy(0.25)))
@@ -1441,7 +1445,7 @@ private fun DayPager(model: TripDetailModel, days: List<ItineraryDay>) {
             .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
             .drawWithContent {
                 drawContent()
-                val inset = TripDetailViewMetrics.pinnedBlockBottomPadding.toPx()
+                val inset = (TripDetailViewMetrics.pinnedBlockTopPadding + TripDetailViewMetrics.pinnedBlockBottomPadding).toPx()
                 val top = model.detailTop - maxOf(model.pinnedHeight - inset, 0f)
                 val fade = 32.dp.toPx()
                 if (size.height > 0f && top + fade > 0f) {

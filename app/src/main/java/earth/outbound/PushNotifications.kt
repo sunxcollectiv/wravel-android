@@ -256,7 +256,7 @@ class PushNotifications(private val api: APIClient = APIClient.shared) {
         fun registerCategories(context: Context) {
             val channel = NotificationChannelCompat.Builder(channelId, NotificationManagerCompat.IMPORTANCE_HIGH)
                 .setName("Notifications")
-                .setDescription("Updates to your trips, and notices from Outbound.")
+                .setDescription("Updates to your trips, and notices from wravel.")
                 .build()
             NotificationManagerCompat.from(context).createNotificationChannel(channel)
         }
