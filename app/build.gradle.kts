@@ -22,11 +22,11 @@ val secrets: Map<*, *> = file("src/main/assets/Secrets.json")
     ?: emptyMap<String, String>()
 
 android {
-    namespace = "earth.outbound"
+    namespace = "app.wravel"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "earth.outbound"
+        applicationId = "app.wravel"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
@@ -40,9 +40,9 @@ android {
         // reaches this machine at 10.0.2.2) and to production on a physical device;
         // release builds always use production. To point a debug build somewhere else on
         // both (another port, or this machine's LAN address for a phone), pass
-        // -Poutbound.apiBaseUrl=http://… or set it in ~/.gradle/gradle.properties.
+        // -Pwravel.apiBaseUrl=http://… or set it in ~/.gradle/gradle.properties.
         debug {
-            val override = providers.gradleProperty("outbound.apiBaseUrl").orNull
+            val override = providers.gradleProperty("wravel.apiBaseUrl").orNull
             buildConfigField("String", "API_BASE_URL", "\"${override ?: "https://api.wravel.app"}\"")
             buildConfigField("String", "EMULATOR_API_BASE_URL", "\"${override ?: "http://10.0.2.2:4830"}\"")
         }
