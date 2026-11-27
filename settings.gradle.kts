@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "outbound"
+rootProject.name = "wravel"
 include(":app")
